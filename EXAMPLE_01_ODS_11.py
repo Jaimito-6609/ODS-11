@@ -8,6 +8,20 @@ Created on Wed May 15 19:34:43 2024
 # EXAMPLE 01 ODS 11
 #==============================================================================
 
+"""
+Liu et. al (2023) analyze how artificial intelligence (AI), through data 
+analysis and route optimization, revolutionizes waste management in urban 
+environments, supporting cleaner cities and a lower carbon footprint. Within 
+the framework of sustainable urban development, they use geographic information 
+systems (GIS) and genetic algorithms to create street designs that balance the 
+needs of pedestrians and vehicular traffic, promoting healthy and sustainable 
+environments.
+
+Liu, Y., Qin, S., Li, J., & Jin, T. (2023). Artificial Intelligence and Street 
+Space Optimization in Green Cities: New Evidence from China. Sustainability, 
+15(23), 16367. https://doi.org/10.3390/su152316367.
+"""
+
 import pandas as pd
 import geopandas as gpd
 import folium
