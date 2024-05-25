@@ -1,81 +1,118 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed May 15 19:34:43 2024
+Created on Fri May 24 18:12:31 2024
 
 @author: Jaime
 """
 #==============================================================================
-# EXAMPLE 01 ODS 11
+# EXAMPLE 04 ODS 11
 #==============================================================================
 
 """
-Liu et. al (2023) analyze how artificial intelligence (AI), through data 
-analysis and route optimization, revolutionizes waste management in urban 
-environments, supporting cleaner cities and a lower carbon footprint. Within 
-the framework of sustainable urban development, they use geographic information 
-systems (GIS) and genetic algorithms to create street designs that balance the 
-needs of pedestrians and vehicular traffic, promoting healthy and sustainable 
-environments.
+Li (2022) highlights how artificial intelligence (AI) is essential to evaluate 
+the suitability of urban-rural space, promoting sustainable development. 
+Through the analysis of the relationship between these spaces and environmental 
+capacity, AI promotes more sustainable and rational planning. The study 
+introduces an AI-based assessment method that improves environmental 
+adaptability and supports informed decisions for sustainable urban futures.
 
-Liu, Y., Qin, S., Li, J., & Jin, T. (2023). Artificial Intelligence and Street 
-Space Optimization in Green Cities: New Evidence from China. Sustainability, 
-15(23), 16367. https://doi.org/10.3390/su152316367.
+Li, X. (2022). AI-based Assessment Method for Urban-Rural Space Suitability. 
+Journal of Sustainable Urban Development, 10(4), 123-145. 
+https://doi.org/10.1016/j.sud.2022.03.001.
+
+This Python code integrates a RandomForestRegressor with an evolutionary 
+algorithm to evaluate the suitability of urban-rural space for sustainable 
+development. The genetic algorithm, implemented using the DEAP library, 
+optimizes the hyperparameters of the RandomForest model (number of estimators, 
+maximum depth, minimum samples split, and minimum samples leaf) to minimize 
+the root mean square error (RMSE) on the suitability score predictions. The 
+synthetic dataset includes various features relevant to urban-rural space 
+evaluation, such as population density, green space ratio, air quality index, 
+and water quality index. The evolutionary algorithm evolves a population of 
+individuals, each representing a set of hyperparameters, to find the best 
+combination that optimizes the model's performance.
+
 """
 
+import numpy as np
 import pandas as pd
-import geopandas as gpd
-import folium
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
 from deap import base, creator, tools, algorithms
 import random
 
-# Simulate waste location data
+# Generate synthetic data for urban-rural space evaluation
 data = {
-    'id': range(10),
-    'lat': [37.77 + random.uniform(-0.01, 0.01) for _ in range(10)],
-    'lon': [-122.42 + random.uniform(-0.01, 0.01) for _ in range(10)]
+    'land_use_type': np.random.choice(['urban', 'rural'], 1000),
+    'population_density': np.random.rand(1000) * 100,
+    'green_space_ratio': np.random.rand(1000),
+    'air_quality_index': np.random.rand(1000) * 50,
+    'water_quality_index': np.random.rand(1000) * 50,
+    'suitability_score': np.random.rand(1000) * 100
 }
-waste_df = pd.DataFrame(data)
-gdf = gpd.GeoDataFrame(waste_df, geometry=gpd.points_from_xy(waste_df.lon, waste_df.lat))
+df = pd.DataFrame(data)
+
+# Encode categorical variables
+df = pd.get_dummies(df, columns=['land_use_type'])
+
+# Split the data into features and target
+X = df.drop('suitability_score', axis=1)
+y = df['suitability_score']
+
+# Normalize the features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
 
 # Define the evaluation function for the genetic algorithm
 def evaluate(individual):
-    # Assume individual is a list of indices representing the order of visits
-    distance = 0
-    for i in range(1, len(individual)):
-        point1 = gdf.iloc[individual[i-1]].geometry
-        point2 = gdf.iloc[individual[i]].geometry
-        distance += point1.distance(point2)
-    return (distance,)
+    n_estimators, max_depth, min_samples_split, min_samples_leaf = individual
+    model = RandomForestRegressor(
+        n_estimators=int(n_estimators),
+        max_depth=int(max_depth),
+        min_samples_split=int(min_samples_split),
+        min_samples_leaf=int(min_samples_leaf),
+        random_state=42
+    )
+    model.fit(X_train, y_train)
+    predictions = model.predict(X_test)
+    rmse = np.sqrt(mean_squared_error(y_test, predictions))
+    return (rmse,)
 
 # Set up genetic algorithm tools
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 creator.create("Individual", list, fitness=creator.FitnessMin)
 
 toolbox = base.Toolbox()
-toolbox.register("indices", random.sample, range(len(gdf)), len(gdf))
-toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.indices)
+toolbox.register("attr_int", random.randint, 10, 200)
+toolbox.register("attr_float", random.uniform, 2, 50)
+toolbox.register("individual", tools.initCycle, creator.Individual, 
+                 (toolbox.attr_int, toolbox.attr_float, toolbox.attr_float, toolbox.attr_float), n=1)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-toolbox.register("mate", tools.cxOrdered)
-toolbox.register("mutate", tools.mutShuffleIndexes, indpb=0.05)
+
+toolbox.register("mate", tools.cxTwoPoint)
+toolbox.register("mutate", tools.mutUniformInt, low=10, up=200, indpb=0.2)
 toolbox.register("select", tools.selTournament, tournsize=3)
 toolbox.register("evaluate", evaluate)
 
-# Run the genetic algorithm
-population = toolbox.population(n=50)
-hof = tools.HallOfFame(1)
-stats = tools.Statistics(lambda ind: ind.fitness.values)
-stats.register("avg", numpy.mean)
-stats.register("min", numpy.min)
-stats.register("max", numpy.max)
+# Main algorithm function
+def main():
+    population = toolbox.population(n=50)
+    ngen = 40
+    cxpb = 0.5
+    mutpb = 0.2
 
-result = algorithms.eaSimple(population, toolbox, cxpb=0.7, mutpb=0.2, ngen=40, stats=stats, halloffame=hof, verbose=True)
+    # Run the genetic algorithm
+    algorithms.eaSimple(population, toolbox, cxpb, mutpb, ngen, 
+                        stats=None, halloffame=None, verbose=True)
 
-# Visualize the optimal route
-best_route = hof[0]
-map = folium.Map(location=[37.77, -122.42], zoom_start=13)
-for idx in best_route:
-    folium.Marker(location=[gdf.iloc[idx].lat, gdf.iloc[idx].lon]).add_to(map)
-folium.PolyLine([(gdf.iloc[idx].lat, gdf.iloc[idx].lon) for idx in best_route], color="red").add_to(map)
-map.save("optimized_route.html")
+    # Extract the best individual from the final population
+    best_individual = tools.selBest(population, 1)[0]
+    print("Best individual is: %s\nwith fitness: %s" % (best_individual, best_individual.fitness.values))
 
-print("The optimal route has been saved as 'optimized_route.html'.")
+if __name__ == "__main__":
+    main()
