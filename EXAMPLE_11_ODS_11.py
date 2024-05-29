@@ -30,7 +30,7 @@ transportation systems. The generated prompts are saved for further use.
 """
 
 #==============================================================================
-# EXAMPEL 10 ODS 11
+# EXAMPEL 11 ODS 11
 #==============================================================================
 import pandas as pd
 import numpy as np
